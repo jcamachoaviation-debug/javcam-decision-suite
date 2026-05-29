@@ -1,0 +1,15 @@
+# ==========================================
+# JAVCAM DECISION SUITE - GITIGNORE CONFIG
+# ==========================================
+
+# 1. Seguridad y Credenciales SaaS (CRÍTICO)
+.streamlit/
+secrets.toml
+
+# 2. Archivos Temporales de Gráficas (Evita basura en el repositorio)
+temp_*.png
+*.png
+
+# 3. Caché de Python
+__pycache__/
+*.pyc
