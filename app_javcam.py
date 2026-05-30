@@ -4,9 +4,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import tempfile
+import itertools
 
 # 1. CONFIGURACIÓN DE IDENTIDAD Y SEGURIDAD DE SERVIDORES
-st.set_page_config(page_title="JAVCAM Decision Suite v5.0", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="JAVCAM Decision Suite v5.5", page_icon="🛡️", layout="wide")
 
 if "credentials" in st.secrets:
     ADMIN_USER = st.secrets["credentials"]["admin_user"]
@@ -23,7 +24,7 @@ if "autenticado" not in st.session_state:
 # INTERFAZ DE LOGIN OBLIGATORIA
 if not st.session_state.autenticado:
     st.title("🛡️ Control de Acceso - JAVCAM Decision Suite")
-    st.subheader("Infraestructura de Gestión de Activos Físicos v5.0")
+    st.subheader("Infraestructura de Gestión de Activos Físicos v5.5")
     
     usuario = st.text_input("Usuario Corporativo:")
     contrasena = st.text_input("Contraseña de Acceso:", type="password")
@@ -50,174 +51,209 @@ token_ingresado = st.sidebar.text_input("🔑 Token de Licencia Activa:", value=
 if token_ingresado == TOKEN_VALIDO:
     ES_ENTERPRISE = True
     st.sidebar.success("👑 LICENCIA ENTERPRISE: ACTIVA")
-    max_alternativas = 6
+    limite_max = 10
 else:
     ES_ENTERPRISE = False
     st.sidebar.warning("⚠️ MODO LIMITADO (FREE)")
-    st.sidebar.info("Para evaluar más de 3 alternativas, habilitar el Análisis Prospectivo de Escenarios y descargar reportes PDF, ingrese su Token.")
-    max_alternativas = 3
+    st.sidebar.info("En el modo Free está limitado a 3 alternativas y 3 criterios. Ingrese su Token Enterprise para desbloquear el escalado hasta 10.")
+    limite_max = 3
 
 st.sidebar.markdown("---")
 
-# 3. CONFIGURACIÓN DEL MODELO MATEMÁTICO
-st.title("📈 JAVCAM Decision Suite - Motor Analítico Avanzado")
-st.write("Entorno de optimización multicriterio con matrices de Saaty, normalización y análisis prospectivo.")
+# 3. CONFIGURACIÓN ESCALAR DEL MODELO
+st.title("📈 JAVCAM Decision Suite - Motor Analítico Escalable")
+st.write("Optimización multicriterio avanzada con direccionalidad de variables y análisis prospectivo.")
 
-st.subheader("⚙️ Parámetros de la Flota / Activos")
-num_alternativas = st.slider("Número de Alternativas (Proyectos/Activos):", min_value=2, max_value=max_alternativas, value=3)
+st.subheader("⚙️ Dimensión del Modelo de Decisión")
+col_dim1, col_dim2 = st.columns(2)
 
-# Definimos 3 criterios estáticos de ingeniería para estructurar Saaty con precisión
-criterios = ["Disponibilidad Técnica (C1)", "Costos de Ciclo de Vida LCC (C2)", "Confiabilidad MTBF (C3)"]
-n_criterios = len(criterios)
+with col_dim1:
+    num_alternativas = st.slider("Cantidad de Alternativas a Evaluar:", min_value=2, max_value=limite_max, value=min(3, limite_max))
+
+with col_dim2:
+    num_criterios = st.slider("Cantidad de Criterios Tecnológicos:", min_value=2, max_value=limite_max, value=min(3, limite_max))
 
 st.markdown("---")
 
-# 4. MÉTODO DE SAATY (PROCESO DE JERARQUÍA ANALÍTICA - AHP)
-st.subheader("🎯 1. Ponderación de Criterios según la Escala de Saaty")
-st.write("Compare la importancia relativa de los criterios. (1: Igual, 3: Moderado, 5: Fuerte, 7: Muy fuerte, 9: Extremo).")
+# 4. DEFINICIÓN Y DIRECCIÓN DE CRITERIOS
+st.subheader("🎯 1. Configuración y Direccionalidad de Criterios")
+st.write("Defina el nombre de los criterios y su impacto en la toma de decisiones.")
 
-# Matriz de comparación pareada interactiva
-st.write("**Establezca los valores de la mitad superior de la matriz:**")
-col_s1, col_s2, col_s3 = st.columns(3)
+criterios_lista = []
+direcciones_lista = []
 
-with col_s1:
-    c1_vs_c2 = st.slider("Importancia de Disponibilidad (C1) frente a Costos (C2):", 0.11, 9.0, 1.0, step=0.1)
-with col_s2:
-    c1_vs_c3 = st.slider("Importancia de Disponibilidad (C1) frente a Confiabilidad (C3):", 0.11, 9.0, 1.0, step=0.1)
-with col_s3:
-    c2_vs_c3 = st.slider("Importancia de Costos (C2) frente a Confiabilidad (C3):", 0.11, 9.0, 1.0, step=0.1)
+cols_crit = st.columns(int(num_criterios))
+for i in range(int(num_criterios)):
+    with cols_crit[i]:
+        nombre = st.text_input(f"Nombre C{i+1}:", f"Criterio C{i+1}", key=f"nc_{i}")
+        direccion = st.selectbox(f"Optimización C{i+1}:", ["Maximizar (+ es mejor)", "Minimizar (- es mejor)"], key=f"dc_{i}")
+        criterios_lista.append(nombre)
+        # Guardamos True si es maximizar, False si es minimizar
+        direcciones_lista.append(True if "Maximizar" in direccion else False)
 
-# Construcción matemática de la matriz de Saaty
-A = np.ones((n_criterios, n_criterios))
-A[0, 1] = c1_vs_c2
-A[1, 0] = 1.0 / c1_vs_c2
-A[0, 2] = c1_vs_c3
-A[2, 0] = 1.0 / c1_vs_c3
-A[1, 2] = c2_vs_c3
-A[2, 1] = 1.0 / c2_vs_c3
+st.markdown("---")
 
-# Normalización de Saaty para obtener los pesos (Vector propio aproximado)
+# 5. PONDERACIÓN DE SAATY AUTOMATIZADA Y DINÁMICA
+st.subheader("📐 2. Matriz de Ponderación (Escala de Saaty)")
+st.write("Establezca las relaciones de importancia pareada entre sus criterios.")
+
+# Generar combinaciones únicas de comparación pareada dinámicamente
+combinaciones = list(itertools.combinations(range(int(num_criterios)), 2))
+
+A = np.ones((int(num_criterios), int(num_criterios)))
+
+if len(combinaciones) > 0:
+    st.write("Compare la importancia del primer criterio frente al segundo:")
+    # Organizar los sliders en columnas para no saturar la pantalla verticalmente
+    cols_saaty = st.columns(min(3, len(combinaciones)))
+    
+    for idx, (c_i, c_j) in enumerate(combinaciones):
+        col_actual = cols_saaty[idx % min(3, len(combinaciones))]
+        with col_actual:
+            valor_slider = st.slider(
+                f"**{criterios_lista[c_i]}** vs **{criterios_lista[c_j]}**:",
+                min_value=0.11, max_value=9.0, value=1.0, step=0.1,
+                key=f"saaty_{c_i}_{c_j}"
+            )
+            A[c_i, c_j] = valor_slider
+            A[c_j, c_i] = 1.0 / valor_slider
+
+# Algoritmo de normalización de Saaty para obtener pesos
 suma_columnas = A.sum(axis=0)
 A_normalizada = A / suma_columnas
 pesos_saaty = A_normalizada.mean(axis=1)
 
-# Cálculo del Índice de Consistencia (CR)
+# Cálculo del Índice de Consistencia Básica
 λ_max = np.sum(suma_columnas * pesos_saaty)
-CI = (λ_max - n_criterios) / (n_criterios - 1)
-RI = 0.58  # Valor de tabla para n=3
+CI = (λ_max - num_criterios) / (num_criterios - 1) if num_criterios > 1 else 0
+# Tabla de Índices Aleatorios (RI) hasta n=10
+RI_dict = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+RI = RI_dict.get(int(num_criterios), 1.49)
 CR = CI / RI if RI > 0 else 0
 
-# Despliegue de resultados de Saaty
-st.write("**Pesos calculados por el Algoritmo de Saaty:**")
-df_pesos = pd.DataFrame({"Criterio": criterios, "Ponderación (Peso)": pesos_saaty})
+st.write("**Pesos de Criterios Consolidados:**")
+df_pesos = pd.DataFrame({"Criterio": criterios_lista, "Dirección": ["Max (+)" if d else "Min (-)" for d in direcciones_lista], "Peso Asignado": pesos_saaty})
 st.dataframe(df_pesos.set_index("Criterio"), use_container_width=True)
 
 if CR < 0.10:
-    st.success(f"✅ Matriz Consistente. Razón de Consistencia (CR): {CR:.4f} < 0.10")
+    st.success(f"✅ Consistencia del Modelo Validada. CR: {CR:.4f}")
 else:
-    st.warning(f"⚠️ Alerta de Consistencia: CR = {CR:.4f}. Considere ajustar las comparaciones para mayor rigor.")
+    st.warning(f"⚠️ Inconsistencia Detectada: CR = {CR:.4f}. Se recomienda calibrar los pesos pareados.")
 
 st.markdown("---")
 
-# 5. NORMALIZACIÓN Y MATRIZ DE RENDIMIENTO
-st.subheader("📊 2. Matriz de Calificación del Operador y Normalización")
-st.write("Ingrese los valores brutos de rendimiento para cada alternativa (Escala 1 a 100):")
+# 6. MATRIZ DE RENDIMIENTO Y NORMALIZACIÓN SEGÚN DIRECCIÓN
+st.subheader("📊 3. Entrada de Datos y Normalización Adaptativa")
+st.write("Ingrese los valores brutos de rendimiento para las alternativas de la flota:")
 
-nombres_alternativas = [f"Alternativa {i+1}" for i in range(num_alternativas)]
-datos_iniciales = {crit: [80.0] * num_alternativas for crit in criterios}
+nombres_alternativas = [f"Alternativa {i+1}" for i in range(int(num_alternativas))]
+datos_iniciales = {crit: [80.0] * int(num_alternativas) for crit in criterios_lista}
 df_bruto = pd.DataFrame(datos_iniciales, index=nombres_alternativas)
 
-# Tabla editable
+# Tabla interactiva editable
 matriz_bruta = st.data_editor(df_bruto, use_container_width=True)
 
-# Proceso de Normalización Lineal (Max-Min)
+# Motor de Normalización Adaptativo Max-Min basado en direcciones_lista
 matriz_np = matriz_bruta.to_numpy()
-# Suponemos C1 y C3 Maxmizar (Beneficio), C2 Minimizar (Costo de ciclo de vida)
 matriz_normalizada = np.zeros_like(matriz_np)
 
-for j in range(n_criterios):
+for j in range(int(num_criterios)):
     max_val = matriz_np[:, j].max()
     min_val = matriz_np[:, j].min()
+    
     if max_val == min_val:
         matriz_normalizada[:, j] = 1.0
     else:
-        if j == 1: # C2 es Costo (Minimizar)
-            matriz_normalizada[:, j] = (max_val - matriz_np[:, j]) / (max_val - min_val)
-        else: # Beneficio (Maximizar)
+        if direcciones_lista[j]:  # Si es Maximizar (+ es mejor)
             matriz_normalizada[:, j] = (matriz_np[:, j] - min_val) / (max_val - min_val)
+        else:  # Si es Minimizar (- es mejor)
+            matriz_normalizada[:, j] = (max_val - matriz_np[:, j]) / (max_val - min_val)
 
-df_norm = pd.DataFrame(matriz_normalizada, columns=criterios, index=nombres_alternativas)
-
-# Cálculo del Score Consolidado Escenario Base
+# Cálculo de Puntuación Base
 scores_base = np.dot(matriz_normalizada, pesos_saaty)
-df_ranking_base = pd.DataFrame({"Score Optimizado (Base)": scores_base}, index=nombres_alternativas).sort_values(by="Score Optimizado (Base)", ascending=False)
+df_ranking_base = pd.DataFrame({"Score Global": scores_base}, index=nombres_alternativas).sort_values(by="Score Global", ascending=False)
 
-st.write("**Ranking Consolidado (Escenario Base):**")
+st.write("**Resultado de Selección (Escenario Base):**")
 col_r1, col_r2 = st.columns([1, 2])
 with col_r1:
     st.dataframe(df_ranking_base, use_container_width=True)
-    st.success(f"🥇 **Selección Óptima:** {df_ranking_base.index[0]}")
+    st.success(f"🥇 **Opción Recomendada:** {df_ranking_base.index[0]}")
 with col_r2:
     fig, ax = plt.subplots(figsize=(6, 3))
-    df_ranking_base.plot(kind="barh", color="#20b2aa", ax=ax, legend=False)
-    plt.title("Rendimiento del Activo - Escenario Base")
+    df_ranking_base.sort_values(by="Score Global", ascending=True).plot(kind="barh", color="#1a73e8", ax=ax, legend=False)
+    plt.title("Rendimiento Óptimo de Activos")
+    plt.xlabel("Score")
     st.pyplot(fig)
 
 st.markdown("---")
 
-# 6. ANÁLISIS PROSPECTIVO BAJO ESCENARIOS (BLOQUEO COMERCIAL INTELIGENTE)
-st.subheader("🔮 3. Análisis Prospectivo y de Escenarios")
+# 7. ANÁLISIS PROSPECTIVO AVANZADO BAJO ESCENARIOS (BLOQUEADO COMERCIAL)
+st.subheader("🔮 4. Análisis Prospectivo de Sensibilidad")
 
 if not ES_ENTERPRISE:
-    st.info("🔒 **Módulo Prospectivo Bloqueado:** Ingrese su Token Enterprise en la barra lateral para simular la sensibilidad de las alternativas bajo escenarios de estrés (Pesimista, Esperado y Optimista).")
+    st.info("🔒 **Módulo Prospectivo Bloqueado:** Introduzca su Token Enterprise en la barra lateral para simular resiliencia ante variaciones del entorno (Pesimista vs Optimista) con matrices completas.")
 else:
-    st.write("Este módulo evalúa la resiliencia de las alternativas modificando la prioridad de los criterios frente a variaciones del entorno de negocios.")
+    st.write("Evaluación de robustez modificando dinámicamente la concentración de pesos ante contingencias operativas o financieras.")
     
-    # Definición matemática de escenarios mediante alteración de pesos de Saaty
-    pesos_pesimista = np.array([0.15, 0.70, 0.15]) 
-    pesos_optimista = np.array([0.45, 0.10, 0.45])
+    # Escenario Pesimista: Fuerza los pesos drásticamente hacia los criterios de Minimización (Costos/Riesgos)
+    # Escenario Optimista: Fuerza los pesos hacia los criterios de Maximización (Rendimiento/Beneficios)
+    pesos_pesimista = np.zeros(int(num_criterios))
+    pesos_optimista = np.zeros(int(num_criterios))
     
-    # Cálculo de scores cruzados
+    count_min = direcciones_lista.count(False)
+    count_max = direcciones_lista.count(True)
+    
+    for j in range(int(num_criterios)):
+        if direcciones_lista[j]:  # Criterio Max
+            pesos_pesimista[j] = 0.10 / count_max if count_max > 0 else 1.0/num_criterios
+            pesos_optimista[j] = 0.90 / count_max if count_max > 0 else 1.0/num_criterios
+        else:  # Criterio Min
+            pesos_pesimista[j] = 0.90 / count_min if count_min > 0 else 1.0/num_criterios
+            pesos_optimista[j] = 0.10 / count_min if count_min > 0 else 1.0/num_criterios
+            
+    # Ajuste de suma 1.0 en casos extremos
+    pesos_pesimista /= pesos_pesimista.sum()
+    pesos_optimista /= pesos_optimista.sum()
+    
     scores_pesimista = np.dot(matriz_normalizada, pesos_pesimista)
     scores_optimista = np.dot(matriz_normalizada, pesos_optimista)
     
     df_prospectiva = pd.DataFrame({
-        "Escenario Pesimista (Enfoque Costos)": scores_pesimista,
+        "Escenario Enfoque Riesgo/Costo (Min)": scores_pesimista,
         "Escenario Esperado (Base Saaty)": scores_base,
-        "Escenario Optimista (Enfoque Operaciones)": scores_optimista
+        "Escenario Enfoque Operativo (Max)": scores_optimista
     }, index=nombres_alternativas)
     
-    st.write("**Matriz de Rendimiento Prospectivo Extrapolado:**")
+    st.write("**Matriz de Escenarios Prospectivos Computados:**")
     st.dataframe(df_prospectiva, use_container_width=True)
     
-    # Gráfico de Líneas / Tendencia de Escenarios
+    # Gráfico de tendencias lineales
     fig_scen, ax_scen = plt.subplots(figsize=(10, 4))
     df_prospectiva.T.plot(kind="line", marker="o", linewidth=2.5, ax=ax_scen)
-    plt.title("Análisis de Sensibilidad y Resiliencia de Alternativas por Escenario")
-    plt.ylabel("Score Global")
-    plt.xlabel("Escenarios Prospectivos")
+    plt.title("Línea de Tendencia: Resiliencia de Activos ante Cambio de Escenarios")
+    plt.ylabel("Score")
     plt.grid(True, linestyle="--", alpha=0.5)
     st.pyplot(fig_scen)
     
-    # SOLUCIÓN DEL KEYERROR USANDO .iloc[0]
+    # Solución definitiva usando .iloc[0] para evitar KeyError
     ganador_pesimista = df_prospectiva.idxmax().iloc[0]
-    st.success(f"💡 **Análisis de Robustez:** En el peor escenario macroeconómico (Pesimista), la opción más resiliente es **{ganador_pesimista}**.")
+    st.success(f"💡 **Análisis de Robustez:** Ante un escenario adverso enfocado en control riguroso de variables críticas, el activo más resiliente es **{ganador_pesimista}**.")
 
-    # 7. EXPORTACIÓN DEL REPORTE INTEGRAL v5.1
+    # 8. SISTEMA DE EMISIÓN DE REPORTES
     st.markdown("---")
-    st.subheader("📥 Certificación Final")
-    if st.button("📥 Generar Reporte de Ingeniería y Prospectiva Completo (PDF)", use_container_width=True):
+    st.subheader("📥 Certificación Final Corporativa")
+    if st.button("📥 Generar Reporte de Ingeniería Escalar Completo (PDF)", use_container_width=True):
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", style='B', size=16)
-        pdf.cell(200, 10, txt="JAVCAM DECISION SUITE v5.1 - INFORME MATEMÁTICO", ln=1, align="C")
+        pdf.cell(200, 10, txt="JAVCAM DECISION SUITE v5.5 - INFORME INGENIERÍA", ln=1, align="C")
         pdf.ln(10)
         pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt=f"Análisis de Confiabilidad y Selección de Activos Físicos.", ln=1, align="L")
-        pdf.cell(200, 10, txt=f"Razón de Consistencia Saaty: {CR:.4f}", ln=1, align="L")
-        pdf.cell(200, 10, txt=f"Ganador Escenario Base: {df_ranking_base.index[0]}", ln=1, align="L")
+        pdf.cell(200, 10, txt=f"Modelo Multicriterio Escalable Computado de Forma Exitosa.", ln=1, align="L")
+        pdf.cell(200, 10, txt=f"Cantidad de Activos Evaluados: {num_alternativas} | Criterios: {num_criterios}", ln=1, align="L")
+        pdf.cell(200, 10, txt=f"Selección de Máxima Eficiencia: {df_ranking_base.index[0]}", ln=1, align="L")
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             pdf.output(tmp.name)
             with open(tmp.name, "rb") as f:
-                st.download_button("Descargar PDF Institucional", data=f, file_name="Reporte_Ingenieria_JAVCAM_v5.pdf", mime="application/pdf")
+                st.download_button("Descargar Reporte PDF de Flota", data=f, file_name="Reporte_Escalar_JAVCAM.pdf", mime="application/pdf")
