@@ -174,9 +174,7 @@ else:
     st.write("Este módulo evalúa la resiliencia de las alternativas modificando la prioridad de los criterios frente a variaciones del entorno de negocios.")
     
     # Definición matemática de escenarios mediante alteración de pesos de Saaty
-    # Escenario Pesimista: El peso se vuelca drásticamente al Costo (C2)
     pesos_pesimista = np.array([0.15, 0.70, 0.15]) 
-    # Escenario Optimista: El peso se enfoca en Máxima Disponibilidad y Confiabilidad (C1 y C3)
     pesos_optimista = np.array([0.45, 0.10, 0.45])
     
     # Cálculo de scores cruzados
@@ -201,17 +199,18 @@ else:
     plt.grid(True, linestyle="--", alpha=0.5)
     st.pyplot(fig_scen)
     
-    # Ganador estratégico de resiliencia
+    # SOLUCIÓN DEL KEYERROR USANDO .iloc[0]
     ganador_pesimista = df_prospectiva.idxmax().iloc[0]
     st.success(f"💡 **Análisis de Robustez:** En el peor escenario macroeconómico (Pesimista), la opción más resiliente es **{ganador_pesimista}**.")
-    # 7. EXPORTACIÓN DEL REPORTE INTEGRAL v5.0
+
+    # 7. EXPORTACIÓN DEL REPORTE INTEGRAL v5.1
     st.markdown("---")
     st.subheader("📥 Certificación Final")
     if st.button("📥 Generar Reporte de Ingeniería y Prospectiva Completo (PDF)", use_container_width=True):
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", style='B', size=16)
-        pdf.cell(200, 10, txt="JAVCAM DECISION SUITE v5.0 - INFORME MATEMÁTICO", ln=1, align="C")
+        pdf.cell(200, 10, txt="JAVCAM DECISION SUITE v5.1 - INFORME MATEMÁTICO", ln=1, align="C")
         pdf.ln(10)
         pdf.set_font("Arial", size=12)
         pdf.cell(200, 10, txt=f"Análisis de Confiabilidad y Selección de Activos Físicos.", ln=1, align="L")
