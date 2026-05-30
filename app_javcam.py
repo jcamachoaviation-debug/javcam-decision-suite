@@ -202,8 +202,8 @@ else:
     st.pyplot(fig_scen)
     
     # Ganador estratégico de resiliencia
-    st.success(f"💡 **Análisis de Robustez:** En el peor escenario macroeconómico (Pesimista), la opción más resiliente es **{df_prospectiva.idxmax()[0]}**.")
-
+    ganador_pesimista = df_prospectiva.idxmax().iloc[0]
+    st.success(f"💡 **Análisis de Robustez:** En el peor escenario macroeconómico (Pesimista), la opción más resiliente es **{ganador_pesimista}**.")
     # 7. EXPORTACIÓN DEL REPORTE INTEGRAL v5.0
     st.markdown("---")
     st.subheader("📥 Certificación Final")
