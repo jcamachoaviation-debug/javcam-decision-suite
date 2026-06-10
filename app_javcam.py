@@ -10,7 +10,7 @@ import itertools
 st.set_page_config(
     page_title="JAVCAM Decision Suite", 
     page_icon="🛡️", 
-    layout="centered"  # Cambiado a 'centered' para mejor visualización y consistencia en smartphones
+    layout="centered"
 )
 
 if "credentials" in st.secrets:
@@ -28,7 +28,7 @@ if "autenticado" not in st.session_state:
 # LOGIN OBLIGATORIO - COMPACTO PARA PANTALLAS TÁCTILES
 if not st.session_state.autenticado:
     st.title("🛡️ Acceso JAVCAM Suite")
-    st.subheader("Infraestructura SaaS Móvil v7.5")
+    st.subheader("Infraestructura SaaS Móvil v7.6")
     
     usuario = st.text_input("Usuario Corporativo:")
     contrasena = st.text_input("Contraseña:", type="password")
@@ -42,7 +42,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # 2. CONTROL DE LICENCIA Y CONFIGURACIÓN EN BARRA LATERAL
-st.sidebar.title("🛸 Panel Móvil v7.5")
+st.sidebar.title("🛸 Panel Móvil v7.6")
 token_ingresado = st.sidebar.text_input("🔑 Token de Licencia:", value="", type="password")
 
 if token_ingresado == TOKEN_VALIDO:
@@ -78,7 +78,6 @@ else:
     default_criterios = ["Criterio 1", "Criterio 2", "Criterio 3"]
     default_alternativas = ["Alt 1", "Alt 2", "Alt 3"]
 
-# Controles deslizantes simplificados para evitar desborde táctil
 num_alternativas = st.slider(label_alt, 2, limite_max, 3)
 num_criterios = st.slider(label_crit, 2, limite_max, 3)
 
@@ -89,7 +88,6 @@ st.subheader("🎯 1. Configuración de Variables")
 criterios_lista = []
 direcciones_lista = []
 
-# En pantallas móviles es mejor apilar verticalmente u organizar en grillas controladas
 for i in range(int(num_criterios)):
     st.markdown(f"**Variable V{i+1}**")
     def_name = default_criterios[i] if i < len(default_criterios) else f"Variable {i+1}"
@@ -123,7 +121,6 @@ suma_columnas = A.sum(axis=0)
 A_normalizada = A / suma_columnas
 pesos_saaty = A_normalizada.mean(axis=1)
 
-# Índices de Consistencia de Saaty
 λ_max = np.sum(suma_columnas * pesos_saaty)
 CI = (λ_max - num_criterios) / (num_criterios - 1) if num_criterios > 1 else 0
 RI_dict = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
@@ -134,7 +131,6 @@ st.write("**Pesos e Índices de Consistencia Computados:**")
 df_pesos = pd.DataFrame({"Variable": criterios_lista, "Peso": pesos_saaty})
 st.dataframe(df_pesos.set_index("Variable"), use_container_width=True)
 
-# Tarjetas Métricas compactas tipo App nativa
 col_m1, col_m2 = st.columns(2)
 with col_m1: st.metric("Índice Consistencia (CI)", f"{CI:.4f}")
 with col_m2: st.metric("Razón Consistencia (CR)", f"{CR*100:.1f}%")
@@ -167,14 +163,13 @@ st.dataframe(df_res, use_container_width=True)
 
 st.markdown("---")
 
-# 7. COMPARATIVA RADIAL (ACOTADA A PANTALLA MÓVIL)
+# 7. COMPARATIVA RADIAL (CORREGIDO DE FORMA DEFINITIVA)
 st.subheader("🕸️ 4. Mapa Radial de Desempeño")
 categories = criterios_lista
 N = len(categories)
 angles = [n / float(N) * 2 * np.pi for n in range(N)]
 angles += angles[:1]
 
-# Tamaño optimizado (5x5) para pantallas verticales de smartphones
 fig_radar, ax_radar = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
 for i, alt_name in enumerate(n_alt):
     values = matriz_norm[i].tolist()
@@ -186,15 +181,15 @@ ax_radar.set_theta_offset(np.pi / 2)
 ax_radar.set_theta_direction(-1)
 plt.xticks(angles[:-1], categories, size=9)
 plt.yticks(size=8)
-# Ajuste de leyenda inferior para que no se desborde horizontalmente
-plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=2, size=9)
+# CORRECCIÓN DE PARÁMETRO DE FUENTE: 'fontsize' en lugar de 'size'
+plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=2, fontsize=9)
 st.pyplot(fig_radar)
 
 st.markdown("---")
 
 # 8. ANÁLISIS PROSPECTIVO DE ESCENARIOS
 st.subheader("🔮 5. Análisis Prospectivo")
-fig_scen, ax_scen = plt.subplots(figsize=(6, 3.5)) # Dimensiones estables para móvil
+fig_scen, ax_scen = plt.subplots(figsize=(6, 3.5))
 
 if not ES_ENTERPRISE:
     st.info("🔒 Ingrese Token Enterprise para desbloquear simulación prospectiva.")
@@ -214,6 +209,8 @@ else:
     df_pros.T.plot(kind="line", marker="o", ax=ax_scen, linewidth=2)
     plt.xticks(size=9)
     plt.yticks(size=9)
+    # Corrección preventiva de leyenda para consistencia interna
+    plt.legend(fontsize=9)
     plt.grid(True, linestyle="--", alpha=0.5)
     st.pyplot(fig_scen)
 
@@ -229,7 +226,7 @@ if st.button("📥 Generar Reporte Certificado (PDF)", use_container_width=True)
             # PÁGINA 1
             pdf.add_page()
             pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, f"JAVCAM SUITE v7.5 - REPORTE", ln=True, align='C')
+            pdf.cell(200, 10, f"JAVCAM SUITE v7.6 - REPORTE", ln=True, align='C')
             pdf.set_font("Arial", '', 12)
             pdf.cell(200, 10, f"Entorno: {entorno} | Operario: {ADMIN_USER}", ln=True, align='C')
             pdf.ln(10)
@@ -270,4 +267,4 @@ if st.button("📥 Generar Reporte Certificado (PDF)", use_container_width=True)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 pdf.output(tmp_pdf.name)
                 with open(tmp_pdf.name, "rb") as f:
-                    st.download_button("Descargar Reporte Completo", data=f, file_name="Reporte_Master_JAVCAM_v7.5.pdf")
+                    st.download_button("Descargar Reporte Completo", data=f, file_name="Reporte_Master_JAVCAM_v7.6.pdf")
